@@ -318,7 +318,13 @@ class GroundMotionSelection:
         self.selected_id = []
         for i in range(self.num_rec):
             cur_tgt = self.pseudo_im_rlz[i,:]
-            cur_err = np.sum(np.abs(self.gmdb_imv[:,self.ims_idx]-cur_tgt[np.newaxis,:]),axis=1)
+            ind_err = np.abs(self.gmdb_imv[:,self.ims_idx]-cur_tgt[np.newaxis,:])
+            if 'DS575H' in ims:
+                cur_err = np.mean(ind_err[:,:-1],axis=1)*self.err_weight['SA'][0]+ind_err[:,-1]*self.err_weight['DS575'][0]
+            elif 'DS595H' in ims:
+                cur_err = np.mean(ind_err[:,:-1],axis=1)*self.err_weight['SA'][0]+ind_err[:,-1]*self.err_weight['DS595'][0]
+            else:
+                cur_err = np.mean(ind_err[:,:-1],axis=1)
             cur_sort = np.argsort(cur_err)
             for cur_id  in cur_sort:
                 if cur_id not in self.selected_id:
