@@ -29,15 +29,6 @@ The package consists of:
   - `SignificantDurationModel`: Implements significant duration models
   - `CorrelationModel`: Implements inter-intensity measure correlation models
 
-## Installation
-
-```bash
-git clone https://github.com/bakerjw/pygms.git
-cd pygms
-# Install dependencies
-pip install -r requirements.txt
-```
-
 ## Usage
 
 ### Basic Usage
@@ -131,11 +122,14 @@ Baker, J. W., and Lee, C. (2018). “An Improved Algorithm for Selecting Ground 
 
 ## Contributors
 
-Kuanshi Zhong (Implementation in Python)
-Jack Baker (Development of a previous implementation in Matlab)
-Marguerite Dubertret (Performance and functional improvements)
+- Kuanshi Zhong (Implementation in Python)
+- Jack Baker (Development of a previous implementation in Matlab)
+- Marguerite Dubertret (Performance and functional improvements)
 
 ## Contact
 
-Kuanshi Zhong [zhongki@ucmail.uc.edu]
-Jack Baker [bakerjw@stanford.edu]
+- Kuanshi Zhong [zhongki@ucmail.uc.edu]
+- Jack Baker [bakerjw@stanford.edu]
+
+## TODO
+add requirements.txt
