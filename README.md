@@ -27,7 +27,7 @@ The package consists of:
 - **Modules**:
   - `USGSHazardGMM`: Fetches USGS API for different ground motion prediction equations
   - `SignificantDurationModel`: Implements significant duration models
-  - `CorrelationModel`: Implements inter-intensity measure correlation models
+  - `CorrelationModel`: Implements intensity-measure correlation models
 
 ## Usage
 
