@@ -43,10 +43,6 @@ import pygms
 pygms.run_selection("example1.json")
 ```
 
-### Example Jupyter Notebook
-
-The repository includes a Jupyter notebook (`examples.ipynb`) that demonstrates how to use the package with different target types.
-
 ## Configuration Options
 
 Configuration is handled through a JSON file with the following main sections:
@@ -83,7 +79,7 @@ The default output is a CSV file containing:
 
 ## References
 
-Baker, J. W., and Lee, C. (2018). “An Improved Algorithm for Selecting Ground Motions to Match a Conditional Spectrum.” Journal of Earthquake Engineering, 22(4), 708–723. https://www.jackwbaker.com/Publications/Baker_Lee_(2018)_GM_Selection,_JEE.pdf. This algorithm is also implemented in Matlab at https://github.com/bakerjw/CS_Selection
+Baker, J. W., and Lee, C. (2018). “[An Improved Algorithm for Selecting Ground Motions to Match a Conditional Spectrum](https://www.jackwbaker.com/Publications/Baker_Lee_(2018)_GM_Selection,_JEE.pdf).” Journal of Earthquake Engineering, 22(4), 708–723. This algorithm is also implemented in [Matlab](https://github.com/bakerjw/CS_Selection).
 
 
 ## License
