@@ -34,7 +34,7 @@ The package consists of:
 ### Basic Usage
 
 1. Create a JSON configuration file (see examples below)
-2. Run the selection using the provided Jupyter notebook or directly with the Python script
+2. Run the selection algorithm using the provided Jupyter notebook [examples.ipynb](https://github.com/bakerjw/pygms/blob/main/examples.ipynb)  or directly with the pygms.py Python script:
 
 ```python
 import pygms
@@ -54,36 +54,6 @@ Configuration is handled through a JSON file with the following main sections:
 1. **Target Intensity Measure**: Define the target spectrum type, periods, and conditional intensity measure
 2. **Ground Motion Models**: Select models and parameters (magnitude, distance, Vs30)
 3. **Selection Parameters**: Define scaling approach, number of ground motions, and error weights
-
-### Example Configuration (CS+duration)
-
-```json
-{
-  "target_im": {
-    "type": "CS+duration",
-    "periods": [0.01, 0.02, ..., 10.0],
-    "conditional_im": {"T": 1.0, "value": 0.5}
-  },
-  "gm_models": {
-    "sa_model": "BSSA_14",
-    "parameters": {
-      "magnitude": 7.0,
-      "rjb": 10.0,
-      "vs30": 760.0
-    }
-  },
-  "selection": {
-    "num_gm": 11,
-    "scaling": "min_max",
-    "error_weights": {
-      "sa_mean": 1.0,
-      "sa_std": 0.5,
-      "ds_mean": 0.8,
-      "ds_std": 0.4
-    }
-  }
-}
-```
 
 ## Examples
 
