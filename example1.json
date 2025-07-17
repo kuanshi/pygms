@@ -71,7 +71,7 @@
     }
   },
   "GroundMotionSelection": {
-    "RecordNum": 100,
+    "RecordNum": 5,
     "Scaling": {
       "Min": 0.1,
       "Max": 20
@@ -80,6 +80,14 @@
     "ErrorWeight": {
       "SA": [0.6, 0.4],
       "DS575": [0.7, 0.3]
+    },
+    "Filtering":{
+      "Magnitude_min":0,
+      "Magnitude_max":10,
+      "Vs30_min":0,
+      "Vs30_max":3000,
+      "Rrup_min":0,
+      "Rrup_max":600
     }
   }
 }
