@@ -3,6 +3,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "lib"))
 import numpy as np
 import pandas as pd
 import USGSHazardGMM, SignificantDurationModel, CorrelationModel
+# added
+from util import plot_filter_effect
 
 LOCAL_IM_GMPE = {"DS575": ["Bommer, Stafford & Alarcon (2009)", "Afshari & Stewart (2016)"],
                  "DS595": ["Bommer, Stafford & Alarcon (2009)", "Afshari & Stewart (2016)"],
@@ -235,6 +237,17 @@ class GroundMotionSelection:
         # scaling factors (default 0.01~100)
         self.scaling_factor_min = gms_config.get('Scaling').get('Min',0.01)
         self.scaling_factor_max = gms_config.get('Scaling').get('Max',100.0)
+        ### MD 07/16/25
+        self.magnitude = gms_config.get('Hazard').get('Magnitude')
+        self.vs30 = gms_config.get('Hazard').get('Vs30')
+        self.distance = gms_config.get('Hazard').get('Rrup')
+        self.magnitude_min = gms_config.get('Filtering').get('Magnitude_min',0.0)
+        self.magnitude_max = gms_config.get('Filtering').get('Magnitude_max',10)
+        self.vs30_min = gms_config.get('Filtering').get('Vs30_min',0.0)
+        self.vs30_max = gms_config.get('Filtering').get('Vs30_max',10000)
+        self.distance_min = gms_config.get('Filtering').get('Rrup_min',0)
+        self.distance_max = gms_config.get('Filtering').get('Rrup_max',10000)
+        ###
         # ground motion database directiory
         self.gmdb_file = gms_config.get('Database',None)
         if self.gmdb_file is None:
@@ -243,7 +256,12 @@ class GroundMotionSelection:
                 "Periods": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_period.csv'),
                 "DS575": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds575.csv'),
                 "DS595": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds595.csv'),
-                "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_filename.csv')
+                "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_filename.csv'),
+                ### MD 07/16/25
+                "Magnitude": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Earthquake Magnitude.csv'),
+                "Vs30": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Preferred Vs30 (m-s).csv'),
+                "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_EpiD (km).csv'),
+                ###
             }
         self.gmdb = dict()
         self.gmdb_status = False
@@ -264,17 +282,57 @@ class GroundMotionSelection:
             self.gmdb.update({cur_key: cur_db})
         self.gmdb_periods = self.gmdb.get('Periods').to_numpy().flatten().tolist()
         self.gmdb_imv = self.gmdb['SA'].to_numpy()
+
+        ### MD 07/16/25
+        self.gmdb_magnitude = self.gmdb['Magnitude'].to_numpy()
+        self.gmdb_vs30 = self.gmdb['Vs30'].to_numpy()
+        self.gmdb_distance = self.gmdb['Distance'].to_numpy()
+        ###
+
         # scaling factor check
         cond_ims = ims[cond_idx]
         if cond_ims.startswith('SA'):
             gmdb_cond_idx = self.gmdb_periods.index(float(cond_ims[3:-1]))
         self.gm_scaling = [float(cond_imv/x) for x in self.gmdb_imv[:,gmdb_cond_idx]]
         self.gm_flag = []
+        
+        ### MD 07/16/25 (histograms)
+        plot_filter_effect(self.gm_scaling, self.scaling_factor_min, self.scaling_factor_max, "Scaling Factor", None)
+        plot_filter_effect(self.gmdb_magnitude, self.magnitude_min, self.magnitude_max, "Magnitude", self.magnitude)
+        plot_filter_effect(self.gmdb_vs30, self.vs30_min, self.vs30_max, "Vs30", self.vs30)
+        plot_filter_effect(self.gmdb_distance, self.distance_min, self.distance_max, "Rrup (Distance)", self.distance)
+        ###
+
+        print(f"Total initial samples: {len(self.gm_scaling)}")
+        count_after_scaling = 0
+        count_after_magnitude = 0
+        count_after_vs30 = 0
+        count_after_distance = 0
         for gmid,cur_scaling in enumerate(self.gm_scaling):
-            if cur_scaling >= self.scaling_factor_min and cur_scaling <= self.scaling_factor_max:
-                self.gm_flag.append(gmid)
+            cur_magnitude=self.gmdb_magnitude[gmid]
+            cur_vs30=self.gmdb_vs30[gmid]
+            cur_distance=self.gmdb_distance[gmid]
+            if self.scaling_factor_min <= cur_scaling <= self.scaling_factor_max:
+                count_after_scaling += 1
+                ### MD 07/16/25
+                if self.magnitude_min <= cur_magnitude <= self.magnitude_max:
+                    count_after_magnitude += 1
+                    if self.vs30_min <= cur_vs30 <= self.vs30_max:
+                        count_after_vs30 += 1
+                        if self.distance_min <= cur_distance <= self.distance_max:
+                            count_after_distance += 1
+                            self.gm_flag.append(gmid)
+                ###
         self.gm_sf = np.array([self.gm_scaling[x] for x in self.gm_flag])
         self.gmdb_imv = np.log(self.gmdb_imv[self.gm_flag,:]*self.gm_sf[:,np.newaxis])
+        ### MD 07/16/25
+        print("Filtering summary:")
+        print(f"After scaling filter: {count_after_scaling}")
+        print(f"After magnitude filter: {count_after_magnitude}")
+        print(f"After Vs30 filter: {count_after_vs30}")
+        print(f"After distance filter: {count_after_distance}")
+        print(f"Final accepted samples: {len(self.gmdb_imv)}")
+        ###
         for cur_im in ims:
             if cur_im.startswith('DS575'):
                 tmp = np.log(self.gmdb['DS575'].to_numpy())
@@ -333,7 +391,6 @@ class GroundMotionSelection:
                 else:
                     pass
 
-
     def optimize_selection(self, ims, num_greedy_rounds=2):
         """
         Greedy algorithm search to minimize the combined error
@@ -380,8 +437,8 @@ class GroundMotionSelection:
                             self.selected_id = copy.deepcopy(cur_selected_id)
                             err_tot = err_new
                 print('GroundMotionSelection.optimize_selection: current total error: {}.'.format(err_tot))
+                
 
-    
     def export_selection(self, ims, output_dir=None):
         if output_dir is None:
             output_dir = os.path.dirname(__file__)
