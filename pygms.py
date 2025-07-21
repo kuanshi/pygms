@@ -237,17 +237,18 @@ class GroundMotionSelection:
         # scaling factors (default 0.01~100)
         self.scaling_factor_min = gms_config.get('Scaling').get('Min',0.01)
         self.scaling_factor_max = gms_config.get('Scaling').get('Max',100.0)
-        ### MD 07/16/25
+        # added
         self.magnitude = gms_config.get('Hazard').get('Magnitude')
         self.vs30 = gms_config.get('Hazard').get('Vs30')
         self.distance = gms_config.get('Hazard').get('Rrup')
+        #
         self.magnitude_min = gms_config.get('Filtering').get('Magnitude_min',0.0)
         self.magnitude_max = gms_config.get('Filtering').get('Magnitude_max',10)
         self.vs30_min = gms_config.get('Filtering').get('Vs30_min',0.0)
         self.vs30_max = gms_config.get('Filtering').get('Vs30_max',10000)
         self.distance_min = gms_config.get('Filtering').get('Rrup_min',0)
         self.distance_max = gms_config.get('Filtering').get('Rrup_max',10000)
-        ###
+        # end of addition
         # ground motion database directiory
         self.gmdb_file = gms_config.get('Database',None)
         if self.gmdb_file is None:
@@ -257,11 +258,11 @@ class GroundMotionSelection:
                 "DS575": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds575.csv'),
                 "DS595": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds595.csv'),
                 "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_filename.csv'),
-                ### MD 07/16/25
+                # added
                 "Magnitude": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Earthquake Magnitude.csv'),
                 "Vs30": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Preferred Vs30 (m-s).csv'),
                 "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_EpiD (km).csv'),
-                ###
+                # end of addition
             }
         self.gmdb = dict()
         self.gmdb_status = False
@@ -283,11 +284,11 @@ class GroundMotionSelection:
         self.gmdb_periods = self.gmdb.get('Periods').to_numpy().flatten().tolist()
         self.gmdb_imv = self.gmdb['SA'].to_numpy()
 
-        ### MD 07/16/25
+        # added
         self.gmdb_magnitude = self.gmdb['Magnitude'].to_numpy()
         self.gmdb_vs30 = self.gmdb['Vs30'].to_numpy()
         self.gmdb_distance = self.gmdb['Distance'].to_numpy()
-        ###
+        # end of addition
 
         # scaling factor check
         cond_ims = ims[cond_idx]
@@ -296,13 +297,15 @@ class GroundMotionSelection:
         self.gm_scaling = [float(cond_imv/x) for x in self.gmdb_imv[:,gmdb_cond_idx]]
         self.gm_flag = []
         
-        ### MD 07/16/25 (histograms)
+        #added (histograms)
         plot_filter_effect(self.gm_scaling, self.scaling_factor_min, self.scaling_factor_max, "Scaling Factor", None)
         plot_filter_effect(self.gmdb_magnitude, self.magnitude_min, self.magnitude_max, "Magnitude", self.magnitude)
         plot_filter_effect(self.gmdb_vs30, self.vs30_min, self.vs30_max, "Vs30", self.vs30)
         plot_filter_effect(self.gmdb_distance, self.distance_min, self.distance_max, "Rrup (Distance)", self.distance)
-        ###
+        # end of addition
 
+        # modified
+        # modification to filter with magnitude, Vs30 and Rrup, and to monitor filter effect
         print(f"Total initial samples: {len(self.gm_scaling)}")
         count_after_scaling = 0
         count_after_magnitude = 0
@@ -314,7 +317,6 @@ class GroundMotionSelection:
             cur_distance=self.gmdb_distance[gmid]
             if self.scaling_factor_min <= cur_scaling <= self.scaling_factor_max:
                 count_after_scaling += 1
-                ### MD 07/16/25
                 if self.magnitude_min <= cur_magnitude <= self.magnitude_max:
                     count_after_magnitude += 1
                     if self.vs30_min <= cur_vs30 <= self.vs30_max:
@@ -322,17 +324,17 @@ class GroundMotionSelection:
                         if self.distance_min <= cur_distance <= self.distance_max:
                             count_after_distance += 1
                             self.gm_flag.append(gmid)
-                ###
         self.gm_sf = np.array([self.gm_scaling[x] for x in self.gm_flag])
         self.gmdb_imv = np.log(self.gmdb_imv[self.gm_flag,:]*self.gm_sf[:,np.newaxis])
-        ### MD 07/16/25
+        # end of modification
+        # added
         print("Filtering summary:")
         print(f"After scaling filter: {count_after_scaling}")
         print(f"After magnitude filter: {count_after_magnitude}")
         print(f"After Vs30 filter: {count_after_vs30}")
         print(f"After distance filter: {count_after_distance}")
         print(f"Final accepted samples: {len(self.gmdb_imv)}")
-        ###
+        # end of addition
         for cur_im in ims:
             if cur_im.startswith('DS575'):
                 tmp = np.log(self.gmdb['DS575'].to_numpy())
@@ -394,50 +396,73 @@ class GroundMotionSelection:
     def optimize_selection(self, ims, num_greedy_rounds=2):
         """
         Greedy algorithm search to minimize the combined error
+        (fast version, unsafe updates, optimized for performance)
+
+        Changes vs optimize_selection2:
+        - Precomputes gmdb_subset and target std once (avoids repeated slicing and diag calls)
+        - Precomputes weights once before loops (avoids repeated if checks)
+        - More in-place trial updates for speed (less copying)
         """
-        # compute the current error
         cur_selected_id = copy.deepcopy(self.selected_id)
-        err_mean = np.square(np.mean(self.gmdb_imv[np.ix_(self.selected_id,self.ims_idx)],axis=0)-self.tgt_mean)
-        err_std = np.square(np.std(self.gmdb_imv[np.ix_(self.selected_id,self.ims_idx)],axis=0)-np.sqrt(np.diag(self.tgt_cov)))
-        err_tot = 0
-        if self.tgt_type in ['CSD']:
+        # Precompute subset matrix once for faster access (new in v3)
+        gmdb_subset = self.gmdb_imv[:, self.ims_idx]  # shape (n_motions, n_ims), avoids long re-slicing
+        tgt_std = np.sqrt(np.diag(self.tgt_cov))      # precompute target std once (new in v3)
+        # Precompute weights once before loops (new in v3)
+        if self.tgt_type == 'CSD':
             if 'DS575H' in ims:
-                err_tot = err_tot+(np.mean(err_mean[:-1])*self.err_weight['SA'][0]+err_mean[-1]*self.err_weight['DS575'][0])
-                err_tot = err_tot+(np.mean(err_std[:-1])*self.err_weight['SA'][1]+err_std[-1]*self.err_weight['DS575'][1])
+                w_sa_mean, w_ds_mean = self.err_weight['SA'][0], self.err_weight['DS575'][0]
+                w_sa_std,  w_ds_std  = self.err_weight['SA'][1], self.err_weight['DS575'][1]
             elif 'DS595H' in ims:
-                err_tot = err_tot+(np.mean(err_mean[:-1])*self.err_weight['SA'][0]+err_mean[-1]*self.err_weight['DS595'][0])
-                err_tot = err_tot+(np.mean(err_std[:-1])*self.err_weight['SA'][1]+err_std[-1]*self.err_weight['DS595'][1])
+                w_sa_mean, w_ds_mean = self.err_weight['SA'][0], self.err_weight['DS595'][0]
+                w_sa_std,  w_ds_std  = self.err_weight['SA'][1], self.err_weight['DS595'][1]
+            else:
+                w_sa_mean = self.err_weight['SA'][0]
+                w_sa_std = self.err_weight['SA'][1]
+                w_ds_mean = w_ds_std = 0.0
         else:
-            err_tot = err_tot+(np.mean(err_mean[:-1])*self.err_weight['SA'][0])
-            err_tot = err_tot+(np.mean(err_std[:-1])*self.err_weight['SA'][1])
-        print('GroundMotionSelection.optimize_selection: current total error: {}.'.format(err_tot))
-        # greedy algorithm
+            w_sa_mean = self.err_weight['SA'][0]
+            w_sa_std = self.err_weight['SA'][1]
+            w_ds_mean = w_ds_std = 0.0
+        # Initial error calculation (same logic as v2)
+        selected_matrix = gmdb_subset[cur_selected_id]
+        mean_vec = np.mean(selected_matrix, axis=0)
+        std_vec = np.std(selected_matrix, axis=0)
+        err_mean = np.square(mean_vec - self.tgt_mean)
+        err_std = np.square(std_vec - tgt_std)
+        err_tot = (np.mean(err_mean[:-1]) * w_sa_mean + err_mean[-1] * w_ds_mean + np.mean(err_std[:-1]) * w_sa_std + err_std[-1] * w_ds_std)
+        print(f'GroundMotionSelection.optimize_selection: current total error: {err_tot:.6f}.')
         for i in range(num_greedy_rounds):
             for cur_gmseat in range(self.num_rec):
-                print('GroundMotionSelection.optimize_selection: {}%.'.format(100*(self.num_rec*i+(cur_gmseat+1))/self.num_rec/num_greedy_rounds))
+                print(f'GroundMotionSelection.optimize_selection: {100*(self.num_rec*i+(cur_gmseat+1))/self.num_rec/num_greedy_rounds:.2f}%.')
+                old_idx = cur_selected_id[cur_gmseat]
+                # Precompute sums and sumsq once per seat (as in v2)
+                selected_matrix = gmdb_subset[cur_selected_id]
+                sum_selected = np.sum(selected_matrix, axis=0)
+                sumsq_selected = np.sum(np.square(selected_matrix), axis=0)
+                old_row = gmdb_subset[old_idx]
                 for new_gmidx in range(len(self.gm_flag)):
-                    if new_gmidx not in cur_selected_id:
-                        cur_selected_id[cur_gmseat] = new_gmidx
-                        # update error
-                        err_mean = np.square(np.mean(self.gmdb_imv[np.ix_(cur_selected_id,self.ims_idx)],axis=0)-self.tgt_mean)
-                        err_std = np.square(np.std(self.gmdb_imv[np.ix_(cur_selected_id,self.ims_idx)],axis=0)-np.sqrt(np.diag(self.tgt_cov)))
-                        err_new = 0
-                        if self.tgt_type in ['CSD']:
-                            if 'DS575H' in ims:
-                                err_new = err_new+(np.mean(err_mean[:-1])*self.err_weight['SA'][0]+err_mean[-1]*self.err_weight['DS575'][0])
-                                err_new = err_new+(np.mean(err_std[:-1])*self.err_weight['SA'][1]+err_std[-1]*self.err_weight['DS575'][1])
-                            elif 'DS595H' in ims:
-                                err_new = err_new+(np.mean(err_mean[:-1])*self.err_weight['SA'][0]+err_mean[-1]*self.err_weight['DS595'][0])
-                                err_new = err_new+(np.mean(err_std[:-1])*self.err_weight['SA'][1]+err_std[-1]*self.err_weight['DS595'][1])
-                        else:
-                            err_new = err_new+(np.mean(err_mean[:-1])*self.err_weight['SA'][0])
-                            err_new = err_new+(np.mean(err_std[:-1])*self.err_weight['SA'][1])
-                        # compare
-                        if err_new < err_tot:
-                            self.selected_id = copy.deepcopy(cur_selected_id)
-                            err_tot = err_new
-                print('GroundMotionSelection.optimize_selection: current total error: {}.'.format(err_tot))
-                
+                    if new_gmidx in cur_selected_id:
+                        continue  # skip if already selected
+                    new_row = gmdb_subset[new_gmidx]
+                    cur_selected_id[cur_gmseat] = new_gmidx  # trial replace (more in-place in v3)
+                    # Update sums and means without full recompute (same as v2)
+                    sum_adj = sum_selected - old_row + new_row
+                    mean_adj = sum_adj / self.num_rec
+                    err_mean = np.square(mean_adj - self.tgt_mean)
+                    # Update std using adjusted sumsq (same as v2)
+                    sumsq_adj = sumsq_selected - old_row ** 2 + new_row ** 2
+                    std_sq = sumsq_adj / self.num_rec - mean_adj ** 2
+                    std_adj = np.sqrt(np.maximum(std_sq, 0.0))
+                    err_std = np.square(std_adj - tgt_std)
+                    # Combined error (same formula as v2, but weights precomputed)
+                    err_new = (np.mean(err_mean[:-1]) * w_sa_mean + err_mean[-1] * w_ds_mean + np.mean(err_std[:-1]) * w_sa_std + err_std[-1] * w_ds_std)
+                    if err_new < err_tot:
+                        self.selected_id = copy.deepcopy(cur_selected_id)
+                        err_tot = err_new
+                # MD Correction
+                cur_selected_id = copy.deepcopy(self.selected_id)
+                print(f'GroundMotionSelection.optimize_selection: current total error: {err_tot:.6f}.')
+
 
     def export_selection(self, ims, output_dir=None):
         if output_dir is None:
