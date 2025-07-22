@@ -83,6 +83,7 @@
       "Vs30_max":3000,
       "Rrup_min":0,
       "Rrup_max":600
-    }
+    },
+    "RandomSeed": 1
   }
 }

@@ -89,6 +89,7 @@
       "Rrup_min":0,
       "Rrup_max":600,
       "PlotHistogram": true
-    }
+    },
+    "RandomSeed": 1
   }
 }

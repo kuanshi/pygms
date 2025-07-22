@@ -250,6 +250,10 @@ class GroundMotionSelection:
         self.distance_max = gms_config.get('Filtering').get('Rrup_max',10000)
         # kz-250722: adding a flag to control histogram plot (default is true)
         self.filtering_hist = gms_config.get('Filtering').get('PlotHistogram',True)
+        # kz-250722: moving the random seed inside the selection class (default is None)
+        self.random_seed = gms_config.get('RandomSeed',None)
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
         # end of addition
         # ground motion database directiory
         self.gmdb_file = gms_config.get('Database',None)
