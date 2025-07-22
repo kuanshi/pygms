@@ -248,6 +248,8 @@ class GroundMotionSelection:
         self.vs30_max = gms_config.get('Filtering').get('Vs30_max',10000)
         self.distance_min = gms_config.get('Filtering').get('Rrup_min',0)
         self.distance_max = gms_config.get('Filtering').get('Rrup_max',10000)
+        # kz-250722: adding a flag to control histogram plot (default is true)
+        self.filtering_hist = gms_config.get('Filtering').get('PlotHistogram',True)
         # end of addition
         # ground motion database directiory
         self.gmdb_file = gms_config.get('Database',None)
@@ -298,10 +300,11 @@ class GroundMotionSelection:
         self.gm_flag = []
         
         #added (histograms)
-        plot_filter_effect(self.gm_scaling, self.scaling_factor_min, self.scaling_factor_max, "Scaling Factor", None)
-        plot_filter_effect(self.gmdb_magnitude, self.magnitude_min, self.magnitude_max, "Magnitude", self.magnitude)
-        plot_filter_effect(self.gmdb_vs30, self.vs30_min, self.vs30_max, "Vs30", self.vs30)
-        plot_filter_effect(self.gmdb_distance, self.distance_min, self.distance_max, "Rrup (Distance)", self.distance)
+        if self.filtering_hist:
+            plot_filter_effect(self.gm_scaling, self.scaling_factor_min, self.scaling_factor_max, "Scaling Factor", None)
+            plot_filter_effect(self.gmdb_magnitude, self.magnitude_min, self.magnitude_max, "Magnitude", self.magnitude)
+            plot_filter_effect(self.gmdb_vs30, self.vs30_min, self.vs30_max, "Vs30", self.vs30)
+            plot_filter_effect(self.gmdb_distance, self.distance_min, self.distance_max, "Rrup (Distance)", self.distance)
         # end of addition
 
         # modified
