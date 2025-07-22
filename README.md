@@ -98,5 +98,5 @@ Baker, J. W., and Lee, C. (2018). “[An Improved Algorithm for Selecting Ground
 - Jack Baker [bakerjw@stanford.edu]
 
 ## TODO
-- add requirements.txt
-- add license (GPL-3.0?)
+- Integrating site-specific seismic disaggregation info
+- Multi-threading/processing function
