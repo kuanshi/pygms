@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import USGSHazardGMM, SignificantDurationModel, CorrelationModel
 # added
-from util import plot_filter_effect
+from util import *
 
 LOCAL_IM_GMPE = {"DS575": ["Bommer, Stafford & Alarcon (2009)", "Afshari & Stewart (2016)"],
                  "DS595": ["Bommer, Stafford & Alarcon (2009)", "Afshari & Stewart (2016)"],
@@ -52,7 +52,27 @@ class TargetIntensityMeasure:
                 self.cond_period = cond_im.get(self.cond_imt).get('Period',None)
                 # conditional value
                 self.cond_imv = cond_im.get(self.cond_imt).get('Value')
-        
+
+        # kz-250722: csv file input for periods
+        self.filedirs = tgt_im_config.get('Directories',None)
+        if self.filedirs is not None:
+            self.input_dir = self.filedirs.get('Input',None)
+            self.output_dir = self.filedirs.get('Output',None)
+        else:
+            self.input_dir = None
+            self.output_dir = None
+        # check input directory
+        if self.input_dir is not None:
+            if os.path.isdir(self.input_dir):
+                pass
+            else:
+                print('TargetIntensityMeasure.__init__: ERROR - the TargetIntensityMeasure input directory {} not found.'.format(self.input_dir))
+                return
+        if self.output_dir is not None:
+            if os.path.isdir(self.output_dir):
+                os.makedirs(self.output_dir)
+                print('TargetIntensityMeasure.__init__: MESSAGE - the TargetIntensityMeasure output directory {} created.'.format(self.output_dir))
+                
         # configure intensity measure type
         self.imt = tgt_im_config.get('IntensityMeasureType',None)
         if self.imt is None:
@@ -91,20 +111,34 @@ class TargetIntensityMeasure:
             print('TargetIntensityMeasure.__imt_config: no IMGroups found.')
             return
         # set individual intensity measures
-        sa_periods = []
+        self.sa_periods = []
         for cur_img in self.im_groups:
             if cur_img not in AVAIL_IMG:
                 print('TargetIntensityMeasure.__imt_config: {} is not in the current supported IMs: {}.'.format(cur_img, AVAIL_IMG))
                 return
             if cur_img == 'SA':
-                sa_periods = self.imt.get(cur_img).get('Periods')
+                #sa_periods = self.imt.get(cur_img).get('Periods')
+                container_periods = self.imt.get(cur_img).get('Periods')
+                # kz-250722: csv input option for periods
+                if type(container_periods) is list:
+                    # directly defining the list of periods
+                    self.sa_periods = container_periods
+                elif type(container_periods) is str:
+                    # pointing to a text file of periods
+                    period_filepath = os.path.join(self.input_dir,container_periods)
+                    if os.path.isfile(period_filepath):
+                        # load the periods
+                        self.sa_periods = load_user_defined_periods(period_filepath)
+                    else:
+                        print('TargetIntensityMeasure.__imt_config: ERROR - the user-defined period file {} not found.'.format(period_filepath))
+                        return
                 # add the conditional period if not already in the sa_periods
-                if (self.cond_period) and (self.cond_period not in sa_periods):
-                    bisect.insort(sa_periods,self.cond_period)
-                if len(sa_periods) < 1:
+                if (self.cond_period) and (self.cond_period not in self.sa_periods):
+                    bisect.insort(self.sa_periods,self.cond_period)
+                if len(self.sa_periods) < 1:
                     print('TargetIntensityMeasure.__imt_config: please define Sa Periods.')
                     return
-                self.ims = self.ims+['SA({})'.format(str(x).rstrip('0').rstrip('.')) for x in sa_periods]
+                self.ims = self.ims+['SA({})'.format(str(x).rstrip('0').rstrip('.')) for x in self.sa_periods]
             elif cur_img.startswith('DS'):
                 self.ims.append(cur_img+'H')
             else:
@@ -154,7 +188,11 @@ class TargetIntensityMeasure:
         # loop over all imt
         self.im_calculators = dict()
         for cur_imt, cur_prop in self.imt.items():
-            cur_periods = cur_prop.get('Periods', None)
+            #cur_periods = cur_prop.get('Periods', None)
+            if cur_imt == "SA":
+                cur_periods = self.sa_periods
+            else:
+                cur_periods = cur_prop.get('Periods', None)
             cur_gmm = self.gmm.get(cur_imt, None)
             if cur_gmm is None:
                 print('SiteData.compute_im: cannot find the ground motion model for {}'.format(cur_imt))

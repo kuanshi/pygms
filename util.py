@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import os
 
 def plot_filter_effect(data_array, filter_min, filter_max, parameter_name, target_value=None):
     """
@@ -38,3 +40,24 @@ def plot_filter_effect(data_array, filter_min, filter_max, parameter_name, targe
     plt.grid(True)
     plt.tight_layout()
     plt.show()
+
+
+# kz-250722: csv input option for periods
+def load_user_defined_periods(infile):
+    # initialize
+    peridos = []
+    # load the periods in the input file path
+    infilename, infileext = os.path.splitext(infile)
+    file_formats = ['.txt','.csv']
+    if infileext not in file_formats:
+        print('load_user_defined_periods: WARNING - the suggested period file format is {}.'.format(file_formats))
+    # try to load the file anyway
+    try:
+        df_periods = pd.read_csv(infile,header=None)
+    except:
+        print('load_user_defined_periods: ERROR - could not load the period file {}.'.format(infile))
+        return peridos
+    # convert to list
+    periods = df_periods[0].tolist()
+    # return
+    return periods
