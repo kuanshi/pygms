@@ -288,28 +288,36 @@ class GroundMotionSelection:
         self.distance_max = gms_config.get('Filtering').get('Rrup_max',10000)
         # kz-250722: adding a flag to control histogram plot (default is true)
         self.filtering_hist = gms_config.get('Filtering').get('PlotHistogram',True)
+        # kz-250724: adding user-filters
+        self.user_filters = gms_config.get('Filtering').get('UserFilters',None)
         # kz-250722: moving the random seed inside the selection class (default is None)
         self.random_seed = gms_config.get('RandomSeed',None)
         if self.random_seed is not None:
             np.random.seed(self.random_seed)
         # end of addition
-        # ground motion database directiory
-        self.gmdb_file = gms_config.get('Database',None)
-        if self.gmdb_file is None:
-            self.gmdb_file = {
-                "SA": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_psa.csv'),
-                "Periods": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_period.csv'),
-                "DS575": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds575.csv'),
-                "DS595": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds595.csv'),
-                "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_filename.csv'),
-                # added
-                "Magnitude": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Earthquake Magnitude.csv'),
-                "Vs30": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Preferred Vs30 (m-s).csv'),
-                "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_EpiD (km).csv'),
-                # end of addition
-            }
-        self.gmdb = dict()
-        self.gmdb_status = False
+        # kz-250724: input/output directories
+        self.filedirs = gms_config.get('Directories',None)
+        if self.filedirs is not None:
+            self.input_dir = self.filedirs.get('Input',None)
+            self.output_dir = self.filedirs.get('Output',None)
+        else:
+            self.input_dir = None
+            self.output_dir = None
+        # check input directory
+        if self.input_dir is not None:
+            if os.path.isdir(self.input_dir):
+                pass
+            else:
+                print('GroundMotionSelection.__init__: ERROR - the GroundMotionSelection input directory {} not found.'.format(self.input_dir))
+                return
+        if self.output_dir is not None:
+            if os.path.isdir(self.output_dir):
+                os.makedirs(self.output_dir)
+                print('GroundMotionSelection.__init__: MESSAGE - the GroundMotionSelection output directory {} created.'.format(self.output_dir))
+
+        # set up the ground motion database
+        self.__setup_gmdb(gms_config)
+        
         # error weight
         self.err_weight = gms_config.get('ErrorWeight',None)
         if self.err_weight is None:
@@ -318,22 +326,91 @@ class GroundMotionSelection:
                 "DS575": [0.5, 0.5]
             }
         self.tgt_type = gms_config.get('TargetType')
-    
 
+    def __setup_gmdb(self, config):
+        # ground motion database directiory
+        gmdb_file = config.get('Database',None)
+        if gmdb_file is None:
+            # kz-250724: default to NGA-West (with available ground motion recordings from PEER)
+            self.default_gmdb = True
+            self.individual_dbfile = True
+            self.gmdb_file = {
+                "SA": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_psa.csv'),
+                "Periods": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_period.csv'),
+                "DS575": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds575.csv'),
+                "DS595": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_ds595.csv'),
+                "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_filename.csv'),
+                # kz-250724: adding the usable period
+                "LowestUsableFrequency": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_lowest_usable_freq.csv'),
+                # added
+                "Magnitude": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Earthquake Magnitude.csv'),
+                "Vs30": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_Preferred Vs30 (m-s).csv'),
+                "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_EpiD (km).csv'),
+                # end of addition
+                "UserFlatfile": None
+            }
+        else:
+            # kz-250724: user-flatfile
+            self.default_gmdb = False
+            flatfilename = gmdb_file.get('UserFlatfile',None)
+            if flatfilename is not None:
+                self.individual_dbfile = False
+                self.gmdb_file = {
+                    "SA": None,
+                    "Periods": None,
+                    "DS575": None,
+                    "DS595": None,
+                    "Filename": None,
+                    "LowestUsableFrequency": None,
+                    "Magnitude": None,
+                    "Vs30": None,
+                    "Distance": None,
+                    "UserFlatfile": file_validation(os.path.join(self.input_dir,flatfilename),['.txt','.csv','.xlsx','.xls'])
+                }
+            else:
+                self.individual_dbfile = True
+                self.gmdb_file = {
+                    "SA": file_validation(os.path.join(self.input_dir,gmdb_file.get('SA',None)),['.txt','.csv']),
+                    "Periods": file_validation(os.path.join(self.input_dir,gmdb_file.get('Periods',None)),['.txt','.csv']),
+                    "DS575": file_validation(os.path.join(self.input_dir,gmdb_file.get('DS575',None)),['.txt','.csv']),
+                    "DS595": file_validation(os.path.join(self.input_dir,gmdb_file.get('DS595',None)),['.txt','.csv']),
+                    "Filename": file_validation(os.path.join(self.input_dir,gmdb_file.get('Filename',None)),['.txt','.csv']),
+                    "LowestUsableFrequency": file_validation(os.path.join(self.input_dir,gmdb_file.get('LowestUsableFrequency',None)),['.txt','.csv']),
+                    "Magnitude": file_validation(os.path.join(self.input_dir,gmdb_file.get('Magnitude',None)),['.txt','.csv']),
+                    "Vs30": file_validation(os.path.join(self.input_dir,gmdb_file.get('Vs30',None)),['.txt','.csv']),
+                    "Distance": file_validation(os.path.join(self.input_dir,gmdb_file.get('Distance',None)),['.txt','.csv']),
+                    "UserFlatfile": None
+                }
+        self.gmdb = dict()
+        self.gmdb_status = False
+    
     def __load_gmdb(self, ims, cond_imv, cond_idx):
         # load the ground motion database
-        for cur_key, cur_db_filename in self.gmdb_file.items():
-            cur_db = pd.read_csv(cur_db_filename,index_col=False,header=None)
-            self.gmdb.update({cur_key: cur_db})
-        self.gmdb_periods = self.gmdb.get('Periods').to_numpy().flatten().tolist()
-        self.gmdb_imv = self.gmdb['SA'].to_numpy()
-
-        # added
-        self.gmdb_magnitude = self.gmdb['Magnitude'].to_numpy()
-        self.gmdb_vs30 = self.gmdb['Vs30'].to_numpy()
-        self.gmdb_distance = self.gmdb['Distance'].to_numpy()
-        # end of addition
-
+        if self.individual_dbfile:
+            for cur_key, cur_db_filename in self.gmdb_file.items():
+                if cur_db_filename is not None:
+                    cur_db = pd.read_csv(cur_db_filename,index_col=False,header=None)
+                    self.gmdb.update({cur_key: cur_db})
+            self.gmdb_periods = self.gmdb['Periods'].to_numpy().flatten().tolist()
+            self.gmdb_imv = self.gmdb['SA'].to_numpy()
+            self.gmdb_max_t = 1.0 / self.gmdb['LowestUsableFrequency'].to_numpy()
+            # added
+            self.gmdb_magnitude = self.gmdb['Magnitude'].to_numpy()
+            self.gmdb_vs30 = self.gmdb['Vs30'].to_numpy()
+            self.gmdb_distance = self.gmdb['Distance'].to_numpy()
+            # end of addition
+        else:
+            # kz-250724: a single flatfile
+            self.gmdb, self.user_filters = parse_user_flatfile(self.gmdb_file.get('UserFlatfile'),self.user_filters)
+            self.gmdb_periods = self.gmdb['Periods'].to_numpy().flatten().tolist()
+            self.gmdb_imv = self.gmdb['SA'].to_numpy()
+            self.gmdb_max_t = 1.0 / self.gmdb['LowestUsableFrequency'].to_numpy()
+            # added
+            self.gmdb_magnitude = self.gmdb['Magnitude'].to_numpy()
+            self.gmdb_vs30 = self.gmdb['Vs30'].to_numpy()
+            self.gmdb_distance = self.gmdb['Distance'].to_numpy()
+            # end of addition
+            
         # scaling factor check
         cond_ims = ims[cond_idx]
         if cond_ims.startswith('SA'):
