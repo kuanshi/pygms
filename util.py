@@ -39,7 +39,7 @@ def plot_filter_effect(data_array, filter_min, filter_max, parameter_name, targe
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.show()
+    plt.show(block=False)
 
 
 # kz-250722: csv input option for periods

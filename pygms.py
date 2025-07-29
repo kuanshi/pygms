@@ -585,3 +585,23 @@ def conditional_intensity_measure(im_mean,im_std,im_corr,im_cond_idx,im_cond):
         print('conditional_intensity_measure: covariance matrix is not positive semidefinite...')
     # return
     return cmim, cov_cond
+
+# adding back the run_selection in pygms for batch run (kz)
+def run_selection(gms_config):
+    with open(gms_config,'r') as f:
+        job_config = json.load(f)
+
+    tgt_config = job_config.get('TargetIntensityMeasure')
+    my_tgt = TargetIntensityMeasure(tgt_config)
+    my_tgt.run_im_calculator()
+
+    gms_config = job_config.get('GroundMotionSelection')
+    gms_config.update({'TargetType':tgt_config.get('TargetType')})
+    gms_config['Hazard']=tgt_config.get('Hazard')
+
+    my_gms = GroundMotionSelection(gms_config)
+    my_gms.generate_pseudo_im(my_tgt.im_target)
+    my_gms.initial_scanning(my_tgt.ims,my_tgt.cond_imv,my_tgt.cond_im_idx)
+    my_gms.optimize_selection(my_tgt.ims)
+
+    my_gms.export_selection(my_tgt.ims)
