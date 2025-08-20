@@ -589,7 +589,7 @@ class GroundMotionSelection:
     def export_selection(self, ims, output_dir=None):
         if output_dir is None:
             output_dir = os.path.dirname(__file__)
-            output_path = os.path.join(output_dir,'GroundMotionSelectionResults.csv')
+        output_path = os.path.join(output_dir,'GroundMotionSelectionResults.csv')
         # ground motion names
         self.selected_gm_names = self.gmdb['Filename'].iloc[[self.gm_flag[x] for x in self.selected_id],0].to_list()
         # intensity measures
