@@ -1,0 +1,1 @@
+The rhoData.csv and rhoDataPD.csv were generated as output files from https://github.com/bakerjw/NGAW2_correlations.git mainScript.m
