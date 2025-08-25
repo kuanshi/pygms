@@ -70,6 +70,8 @@ class TargetIntensityMeasure:
                 return
         if self.output_dir is not None:
             if os.path.isdir(self.output_dir):
+                pass
+            else:
                 os.makedirs(self.output_dir)
                 print('TargetIntensityMeasure.__init__: MESSAGE - the TargetIntensityMeasure output directory {} created.'.format(self.output_dir))
                 
@@ -103,6 +105,9 @@ class TargetIntensityMeasure:
 
         # configure intensity measure calculators
         self.set_im_calculator()
+
+        # kz: save target
+        self.save_target = tgt_im_config.get('SaveTarget',False)
     
 
     def __imt_config(self):
@@ -273,6 +278,14 @@ class TargetIntensityMeasure:
             'ConditionalMean': np.exp(cmim).tolist(), 
             'ConditionalCov': cov_cond.tolist()
         }
+        # kz: save the target to a json file
+        if self.save_target:
+            if self.output_dir is None:
+                print('TargetIntensityMeasure.run_im_calculator: please define a valid Output directory.')
+                return
+            else:
+                with open(os.path.join(self.output_dir,'target_intensity_measure.json'),'w') as f:
+                    json.dump(self.im_target,f,indent=2)
 
 
 class GroundMotionSelection:
@@ -327,6 +340,8 @@ class GroundMotionSelection:
                 return
         if self.output_dir is not None:
             if os.path.isdir(self.output_dir):
+                pass
+            else:
                 os.makedirs(self.output_dir)
                 print('GroundMotionSelection.__init__: MESSAGE - the GroundMotionSelection output directory {} created.'.format(self.output_dir))
 

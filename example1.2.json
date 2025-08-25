@@ -26,8 +26,10 @@
     },
     "IMCorrelationModel": "NGA West2 RhoPD",
     "Directories": {
-        "Input": "./input"
-    }
+        "Input": "./input",
+        "Output": "./output"
+    },
+    "SaveTarget": true
   },
   "GroundMotionSelection": {
     "RecordNum": 5,
