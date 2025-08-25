@@ -94,6 +94,13 @@ class TargetIntensityMeasure:
             return
         self.__gmm_config()
 
+        # kz: configure correlation model (default is the prediction equations in CorrelationModel.baker_bradley_correlation_2017)
+        self.im_corr = tgt_im_config.get('IMCorrelationModel','BakerBradleyPred2017')
+        avail_im_corrs = ['BakerBradleyPred2017','NGA West2 Rho','NGA West2 RhoPD']
+        if self.im_corr not in avail_im_corrs:
+            print('TargetIntensityMeasure.__init__: please select correlation model from {}.'.format(avail_im_corrs))
+            return
+
         # configure intensity measure calculators
         self.set_im_calculator()
     
@@ -242,7 +249,15 @@ class TargetIntensityMeasure:
             for k, im2 in enumerate(self.ims):
                 if j > k:
                     continue
-                im_corr[j,k] = CorrelationModel.baker_bradley_correlation_2017(im1=im1, im2=im2)
+                if self.im_corr == 'BakerBradleyPred2017':
+                    im_corr[j,k] = CorrelationModel.baker_bradley_correlation_2017(im1=im1, im2=im2)
+                elif self.im_corr == 'NGA West2 Rho':
+                    im_corr[j,k] = CorrelationModel.nga_west2_correlation_2017(im1=im1, im2=im2)
+                elif self.im_corr == 'NGA West2 RhoPD':
+                    im_corr[j,k] = CorrelationModel.nga_west2_correlation_2017(im1=im1, im2=im2, positive_def=True)
+                else:
+                    print('TargetIntensityMeasure.run_im_calculator: error - please check the IMCorrelationModel')
+                    return
                 im_corr[k,j] = im_corr[j,k]
         # evaluate the conditional intensity measures
         if self.cond_imt.startswith('DS'):

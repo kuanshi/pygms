@@ -1,4 +1,17 @@
 import numpy as np
+import pandas as pd
+from scipy.interpolate import RegularGridInterpolator, interp1d
+import os
+
+nga_west2_rhoData = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)),'nga_west2_rhoData/rhoData.csv'),header=None,index_col=None)
+nga_west2_rhoDataPD = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)),'nga_west2_rhoData/rhoDataPD.csv'),header=None,index_col=None)
+nw2_periods = [0.01,0.02,0.022,0.025,0.029,0.03,0.032,0.035,0.036,0.04,0.042,0.044,0.045,0.046,0.048,0.05,
+               0.055,0.06,0.065,0.067,0.07,0.075,0.08,0.085,0.09,0.095,0.1,0.11,0.12,0.13,0.133,0.14,0.15,
+               0.16,0.17,0.18,0.19,0.2,0.22,0.24,0.25,0.26,0.28,0.29,0.3,0.32,0.34,0.35,0.36,0.38,0.4,
+               0.42,0.44,0.45,0.46,0.48,0.5,0.55,0.6,0.65,0.667,0.7,0.75,0.8,0.85,0.9,0.95,1,
+               1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.2,2.4,2.5,2.6,2.8,3,3.2,3.4,3.5,3.6,3.8,4,
+               4.2,4.4,4.6,4.8,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10]
+nga_west2_imt = nw2_periods+['DS575H','DS595H','PGA','PGV']
 
 def baker_jayaram_correlation_2008(im1, im2, flag_orth = False):
     """
@@ -237,6 +250,60 @@ def baker_bradley_correlation_2017(im1=None, im2=None):
     
     # return
     return rho
+
+
+def nga_west2_correlation_2017(im1=None, im2=None, positive_def=False):
+    im_map = {'DS575H': 0, 'DS595H':1, 'PGA': 2, 'PGV': 3}
+    period_list = []
+    im_list = []
+    if im1.startswith('SA'):
+        im_list.append('SA')
+        period_list.append(float(im1[3:-1]))
+    else:
+        tmp_tag = im_map.get(im1.upper(), None)
+        if tmp_tag is None:
+            print("CorrelationModel.nga_west2_correlation_2017: warning - return 0.0 for unknown {}".format(im1))
+            return 0.0
+        im_list.append(tmp_tag)
+        period_list.append(None)
+    if im2.startswith('SA'):
+        im_list.append('SA')
+        period_list.append(float(im2[3:-1]))
+    else:
+        tmp_tag = im_map.get(im2.upper(), None)
+        if tmp_tag is None:
+            print("CorrelationModel.nga_west2_correlation_2017: warning - return 0.0 for unknown {}".format(im2))
+            return 0.0
+        im_list.append(tmp_tag)
+
+    if im1.startswith('SA') and im2.startswith('SA'):
+        # two Sa intensities
+        if positive_def:
+            sa_rho_interp = RegularGridInterpolator((np.log(nw2_periods),np.log(nw2_periods)),nga_west2_rhoDataPD.to_numpy()[:-4,:-4])
+        else:
+            sa_rho_interp = RegularGridInterpolator((np.log(nw2_periods),np.log(nw2_periods)),nga_west2_rhoData.to_numpy()[:-4,:-4])
+        return sa_rho_interp(np.log(period_list))[0]
+    
+    if 'SA' not in im_list:
+        # two non-Sa intensities
+        # rho matrix
+        if positive_def:
+            rho_mat = nga_west2_rhoDataPD.to_numpy()[-4:,-4:].tolist()
+        else:
+            rho_mat = nga_west2_rhoData.to_numpy()[-4:,-4:].tolist()
+        # return
+        return rho_mat[im_list[0]][im_list[1]]
+    
+    # one Sa + one non-Sa
+    im_list.remove('SA')
+    im_tag = im_list[0]
+    T = [x for x in period_list if x is not None][0]
+    if positive_def:
+        rho_interp = interp1d(np.log(nw2_periods),nga_west2_rhoDataPD.to_numpy()[len(nw2_periods)+im_tag,:-4].tolist())
+    else:
+        rho_interp = interp1d(np.log(nw2_periods),nga_west2_rhoData.to_numpy()[len(nw2_periods)+im_tag,:-4].tolist())
+    return float(rho_interp(np.log(T)))
+
 
 def get_distance_from_lat_lon(site_loc1, site_loc2):
 
