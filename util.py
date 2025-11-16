@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
+import os, shutil
+from scipy.stats import norm
 
 def plot_filter_effect(data_array, filter_min, filter_max, parameter_name, target_value=None):
     """
@@ -150,3 +151,127 @@ def parse_user_flatfile(infile,user_filters,data_style='PEER_NGA'):
 
 
         
+
+# kz-250729: loading a formatted ground motion selection result csv
+def generate_ground_motion_set(infile,gm_dir=None,dt_file=None,plot_flag=True,gms=None,output_dir='./',clone_rec=False):
+    # check the ground motion directory
+    if gm_dir is None:
+        print('generate_ground_motion_set: please specify the gm_dir that contains recording files.')
+        return
+    if os.path.isdir(gm_dir):
+        pass
+    else:
+        print('generate_ground_motion_set: please check the ground motion recording directory {}.'.format(gm_dir))
+        return
+    # load the infile
+    try:
+        if os.path.isfile(infile):
+            pass
+        else:
+            print('generate_ground_motion_set: the input {} not found.'.format(infile))
+            return
+        df_gms = pd.read_csv(infile,header=0)
+        # ground motion filenames
+        gm_filename = df_gms['GroundMotion'].tolist()
+        # scaling factor
+        if 'ScalingFactor' in df_gms.columns:
+            gm_scalingfactor = df_gms['ScalingFactor'].tolist()
+        else:
+            gm_scalingfactor = [1.0 for i in range(len(gm_filename))]
+        # sa
+        sa_cols = [x for x in df_gms.columns if x.startswith('SA')]
+        if len(sa_cols)>0:
+            gm_psa = df_gms[sa_cols]
+            gm_periods = [float(x[3:-1]) for x in sa_cols]
+        else:
+            print('generate_ground_motion_set: no spectral acceleration found in the input file.')
+        # duration
+        ds_cols = [x for x in df_gms.columns if x.startswith('DS')]
+        if len(ds_cols)>0:
+            gm_ds = df_gms[ds_cols]
+            print('generate_ground_motion_set: no duration metric found in the input file.')
+    except:
+        print('generate_ground_motion_set: unable to load {} correctly.'.format(infile))
+
+    if os.path.isdir(output_dir):
+        pass
+    else:
+        os.makedirs(output_dir)
+
+    # generate figures
+    if plot_flag:
+        if len(sa_cols)>0:
+            plt.figure(figsize=(8,5))
+            for i in range(len(gm_psa.index)):
+                plt.loglog(gm_periods,gm_psa.iloc[i,:]*gm_scalingfactor[i],color=(0.5,0.5,0.5),linestyle='--',linewidth=0.5)
+            # tgt mean and standard deviation
+            if hasattr(gms,'tgt_mean'):
+                tgt_mean = gms.tgt_mean[0:len(gm_periods)]
+            else:
+                tgt_mean = None
+            if hasattr(gms,'tgt_cov'):
+                tgt_std = np.sqrt(np.diag(gms.tgt_cov)[0:len(gm_periods)])
+            else:
+                tgt_std = None
+            if tgt_mean is not None:
+                plt.loglog(gm_periods,np.exp(tgt_mean),color=(0.0,0.0,0.0),linestyle='-',linewidth=1)
+            if tgt_std is not None:
+                plt.loglog(gm_periods,np.exp(tgt_mean+tgt_std),color=(0.0,0.0,0.0),linestyle='--',linewidth=1)
+                plt.loglog(gm_periods,np.exp(tgt_mean-tgt_std),color=(0.0,0.0,0.0),linestyle='--',linewidth=1)
+            plt.xlabel('Period (sec)')
+            plt.ylabel('Sa (g)')
+            plt.grid()
+            plt.savefig(os.path.join(output_dir,'RecordSpectrum.png'),dpi=300)
+            plt.show(block=False)
+        if len(ds_cols)>0:
+            for i,cur_ds in enumerate(ds_cols):
+                plt.figure(figsize=(8,5))
+                cur_vals = gm_ds[cur_ds]
+                x = np.sort(cur_vals)
+                y = np.arange(1,len(cur_vals)+1)/len(cur_vals)
+                plt.plot(x, y,marker=".",color=(0.5,0.5,0.5),linewidth=1)
+                if hasattr(gms,'tgt_mean'):
+                    tgt_mean = gms.tgt_mean[len(gm_periods)+i]
+                else:
+                    tgt_mean = None
+                if hasattr(gms,'tgt_cov'):
+                    tgt_std = np.sqrt(np.diag(gms.tgt_cov)[len(gm_periods)+i])
+                else:
+                    tgt_std = None
+                if tgt_mean is not None and tgt_std is not None:
+                    x = np.linspace(0.5,50,50)
+                    y = norm.cdf(np.log(x), loc=tgt_mean, scale=tgt_std)
+                    plt.plot(x, y,color=(0.0,0.0,0.0),linewidth=1)
+                plt.xlabel(cur_ds)
+                plt.ylabel('Cumulative distribution function')
+                plt.grid()
+                plt.savefig(os.path.join(output_dir,'DurationDistribution.png'),dpi=300)
+                plt.show(block=False)
+    
+    # dt
+    gm_dt = []
+    if dt_file is None:
+        dt_flag = False
+    else:
+        try:
+            df_dt = pd.read_csv(dt_file,header=None)
+            gm_dt = [float(df_dt[df_dt.iloc[:,0]==x].iloc[0,1]) for x in gm_filename]
+            dt_flag = True
+        except:
+            dt_flag = False
+
+    # generate GMInfo.txt
+    df_gminfo = pd.DataFrame.from_dict({
+        'index': [x+1 for x in range(len(gm_filename))],
+        'filename': gm_filename,
+        'dt': gm_dt,
+        'scaling_factor': gm_scalingfactor
+    })
+    df_gminfo.to_csv(os.path.join(output_dir,'GMInfo.txt'),header=False,index=False,sep='\t')
+
+    if clone_rec:
+        for cur_file in gm_filename:
+            shutil.copy(os.path.join(gm_dir,cur_file),os.path.join(output_dir))
+                
+
+
