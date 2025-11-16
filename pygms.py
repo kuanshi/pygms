@@ -308,6 +308,20 @@ class GroundMotionSelection:
                 "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west_EpiD (km).csv'),
                 # end of addition
             }
+        elif self.gmdb_file == 'NGA-West2':
+            self.gmdb_file = {
+                "SA": [os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/psa_p1.csv'),
+                       os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/psa_p2.csv'),
+                       os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/psa_p3.csv')],
+                "Periods": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/period.csv'),
+                "DS575": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/ds575.csv'),
+                "DS595": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/ds595.csv'),
+                "Filename": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/rsn.csv'),
+                # added
+                "Magnitude": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/Earthquake Magnitude.csv'),
+                "Vs30": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/Preferred Vs30 (m-s).csv'),
+                "Distance": os.path.join(os.path.dirname(__file__),'gmdb/nga_west2/EpiD (km).csv')
+            }
         self.gmdb = dict()
         self.gmdb_status = False
         # error weight
@@ -323,7 +337,13 @@ class GroundMotionSelection:
     def __load_gmdb(self, ims, cond_imv, cond_idx):
         # load the ground motion database
         for cur_key, cur_db_filename in self.gmdb_file.items():
-            cur_db = pd.read_csv(cur_db_filename,index_col=False,header=None)
+            if isinstance(cur_db_filename,list):
+                cur_db = pd.DataFrame()
+                for cur_file in cur_db_filename:
+                    tmp = pd.read_csv(cur_file,index_col=False,header=None)
+                    cur_db = pd.concat([cur_db, tmp], ignore_index=True)
+            else:
+                cur_db = pd.read_csv(cur_db_filename,index_col=False,header=None)
             self.gmdb.update({cur_key: cur_db})
         self.gmdb_periods = self.gmdb.get('Periods').to_numpy().flatten().tolist()
         self.gmdb_imv = self.gmdb['SA'].to_numpy()
