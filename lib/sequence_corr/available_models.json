@@ -1,0 +1,23 @@
+{
+    "CorrelationModels": {
+        "Class1-Class2": [
+            "Zhu (2017)",
+            "Papadopoulos et al. (2019)",
+            "Xu et al. (2024)"
+        ],
+        "Class2-Class2": [
+
+        ],
+        "Class2.1-Class2.1": [
+
+        ],
+        "Class2.1-Class2.2": [
+
+        ]
+    },
+    "ModelFiles":{
+        "Zhu (2017)": "Zhu2017.txt",
+        "Papadopoulos et al. (2019)": "Papadopoulos2019.py",
+        "Xu et al. (2024)": "Xu2024.txt"
+    }
+}
