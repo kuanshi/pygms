@@ -1,10 +1,11 @@
 from pygms import *
+import importlib
 from scipy.interpolate import RegularGridInterpolator
 sys.path.append(os.path.join(os.path.dirname(__file__), "lib/sequence_corr"))
 
 # default code for periods: -3: Ds595, -2: Ds575, -1: PGV, 0: PGA, >0: Sa(T)
 PERIODS = np.array([-3,-2,-1,0]+[0.01+0.01*x for x in range(1000)])
-# Available ground motion pair correlation models
+# available ground motion pair correlation models
 with open('available_models.json','r') as f:
     dict_seq_corr_models = json.load(f)
 LOCAL_CORR_MODEL = dict_seq_corr_models.get('CorrelationModels')
@@ -57,16 +58,20 @@ class TargetIntensityMeasureSequence:
         # time interval (in days)
         self.dTs = [eq.get('Hazard').get('dT',None)for eq in self.tgt_im_sequence]
         # azmuth angle
-        self.dAs = [eq.get('Hazard').get('AzmuthAngle',None) for eq in self.tgt_im_sequence]
+        self.dAs = [eq.get('Hazard').get('AzimuthAngle',None) for eq in self.tgt_im_sequence]
 
 
     def __configure_gmseq_correlation(self):
         # MS-AS correlation model type:
         self.corr_type_c1c2 = self.seq_corr.get('Class1-Class2',None)
+        self.compute_c1c2_corr(ctype=self.corr_type_c1c2)
         # between aftershocks:
         self.corr_type_c2c2 = self.seq_corr.get('Class2-Class2',None)
+        self.compute_c2c2_corr(ctype=self.corr_type_c2c2)
         self.corr_type_c21c21 = self.seq_corr.get('Class2.1-Class2.1',None)
+        self.compute_c21c21_corr(ctype=self.corr_type_c21c21)
         self.corr_type_c21c22 = self.seq_corr.get('Class2.1-Class2.2',None)
+        self.compute_c21c22_corr(ctype=self.corr_type_c21c22)
 
 
     def __configure_tgt_intensity_measures(self):
@@ -74,6 +79,9 @@ class TargetIntensityMeasureSequence:
         self.indiv_intensity_measures = []
         for idx in range(self.num_events):
             self.indiv_intensity_measures.append(TargetIntensityMeasure(self.tgt_im_sequence[idx]))
+        # run each without conditioning
+        for idx in range(self.num_events):
+            self.indiv_intensity_measures[idx].run_im_calculator(condition_flag=False)
 
 
     def compute_c1c2_corr(self,ctype=None):
@@ -107,5 +115,66 @@ class TargetIntensityMeasureSequence:
                 cur_locs = np.column_stack((Xi.ravel(),Yi.ravel()))
                 self.corr_c1c2[np.ix_(period_idx,period_idx)] = cur_interp(cur_locs).reshape(len(period_idx),len(period_idx))
             elif cm_file.endswith('.py'):
-                # a python function with input of (Ti,Tj)
-                pass
+                cm_name = cm_file.replace('.py','')
+                # a python function with input of (T_event1,T_event2)
+                try:
+                    cur_cm = importlib.import_module(cm_name)
+                    for name in dir(cur_cm):
+                        if not name.startswith("_"):
+                            globals()[name] = getattr(cur_cm, name)
+                except:
+                    print('TargetIntensityMeasureSequence.compute_c1c2_corr: {} not imported properly.'.format(cm_file))
+                    return                
+                # evalute 
+                for i,ti in enumerate(PERIODS):
+                    for j,tj in enumerate(PERIODS):
+                        self.corr_c1c2[i,j] = globals()[cm_name](ti,tj)
+
+
+    def compute_c2c2_corr(self,ctype=None):
+        """
+        Compute the full correlation coefficient matrix for class2-class2 ground motion pairs
+        """
+        self.corr_c2c2_periods = PERIODS
+        if ctype is None:
+            # uncorrelated assumption            
+            self.corr_c2c2 = np.zeros((len(PERIODS),len(PERIODS)))
+        elif ctype not in LOCAL_CORR_MODEL.get('Class2-Class2'):
+            print('TargetIntensityMeasureSequence.compute_c2c2_corr: {} is not supported - please select one from {}.'.format(ctype,LOCAL_CORR_MODEL.get('Class2-Class2')))
+            return
+        else:
+            # TBA
+            pass
+        
+
+    def compute_c21c21_corr(self,ctype=None):
+        """
+        Compute the full correlation coefficient matrix for class2.1-class2.1 ground motion pairs
+        """
+        self.corr_c21c21_periods = PERIODS
+        if ctype is None:
+            # uncorrelated assumption            
+            self.corr_c21c21 = np.zeros((len(PERIODS),len(PERIODS)))
+        elif ctype not in LOCAL_CORR_MODEL.get('Class2.1-Class2.1'):
+            print('TargetIntensityMeasureSequence.compute_c21c21_corr: {} is not supported - please select one from {}.'.format(ctype,LOCAL_CORR_MODEL.get('Class2.1-Class2.1')))
+            return
+        else:
+            # TBA
+            pass
+    
+
+    def compute_c21c22_corr(self,ctype=None):
+        """
+        Compute the full correlation coefficient matrix for class2.1-class2.2 ground motion pairs
+        """
+        self.corr_c21c22_periods = PERIODS
+        if ctype is None:
+            # uncorrelated assumption            
+            self.corr_c21c22 = np.zeros((len(PERIODS),len(PERIODS)))
+        elif ctype not in LOCAL_CORR_MODEL.get('Class2.1-Class2.2'):
+            print('TargetIntensityMeasureSequence.compute_c21c22_corr: {} is not supported - please select one from {}.'.format(ctype,LOCAL_CORR_MODEL.get('Class2.1-Class2.2')))
+            return
+        else:
+            # TBA
+            pass
+                

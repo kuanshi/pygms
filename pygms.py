@@ -209,7 +209,7 @@ class TargetIntensityMeasure:
             self.im_calculators.update({cur_imt: cur_calculator})
     
 
-    def run_im_calculator(self):
+    def run_im_calculator(self,condition_flag=True):
         # initialize mean and standard deviation list
         im_mean = []
         im_std = []
@@ -245,11 +245,16 @@ class TargetIntensityMeasure:
                 im_corr[j,k] = CorrelationModel.baker_bradley_correlation_2017(im1=im1, im2=im2)
                 im_corr[k,j] = im_corr[j,k]
         # evaluate the conditional intensity measures
-        if self.cond_imt.startswith('DS'):
-            self.cond_im_idx = self.ims.index(self.cond_imt+'H')
+        if condition_flag:
+            if self.cond_imt.startswith('DS'):
+                self.cond_im_idx = self.ims.index(self.cond_imt+'H')
+            else:
+                self.cond_im_idx = self.ims.index(self.cond_imt+'({})'.format(str(self.cond_period).rstrip('0').rstrip('.')))
+            cmim, cov_cond = conditional_intensity_measure(im_mean,im_std,im_corr.tolist(),self.cond_im_idx,self.cond_imv)
         else:
-            self.cond_im_idx = self.ims.index(self.cond_imt+'({})'.format(str(self.cond_period).rstrip('0').rstrip('.')))
-        cmim, cov_cond = conditional_intensity_measure(im_mean,im_std,im_corr.tolist(),self.cond_im_idx,self.cond_imv)
+            cmim = []
+            cov_cond = []
+
         # collect
         self.im_target = {
             'Median': np.exp(im_mean).tolist(),
