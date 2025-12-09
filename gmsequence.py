@@ -27,8 +27,6 @@ class TargetIntensityMeasureSequence:
         self.__configure_hazards()
         # sequential-gm correlation model
         self.seq_corr = gmseq_config.get('SequenceCorrelation',dict())
-        # set correlation models
-        self.__configure_gmseq_correlation()
         # set target intensity measures
         self.__configure_tgt_intensity_measures()
 
@@ -82,6 +80,16 @@ class TargetIntensityMeasureSequence:
         # run each without conditioning
         for idx in range(self.num_events):
             self.indiv_intensity_measures[idx].run_im_calculator(condition_flag=False)
+        # number of intensity measures (of the sequence)
+        self.num_ims = [len(cur_tgt.ims) for cur_tgt in self.indiv_intensity_measures]
+        self.num_ims_tot = np.sum(self.num_ims)
+        # initialize the correlation matrix
+        self.corr_mat_tot = np.empty((self.num_events,self.num_events),dtype=object)
+        for i in range(self.num_events):
+            for j in range(self.num_events):
+                self.corr_mat_tot[i,j] = np.zeros((self.num_ims[i],self.num_ims[j]))
+        # set correlation models
+        self.__configure_gmseq_correlation()
 
 
     def compute_c1c2_corr(self,ctype=None):
